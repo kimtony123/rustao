@@ -17,7 +17,8 @@
 - 📊 **Compute Queries** – Fetch process state via HTTP compute endpoints.
 - 🔁 **Wait for Results** – Poll until a message result is available.
 - 🔐 **Hybrid Encryption** – RSA‑OAEP + AES‑GCM for secure payloads.
-- 🧾 **Arweave Wallet Support** – Sign using JWK files or private key hex.
+- 🧾 **Arweave Wallet Support** – Sign using JWK files.
+- 🔑 **Local Crypto** – Embedded RSA signing (from arweave-rust) for security.
 
 ---
 
@@ -25,27 +26,54 @@
 
 Add this to your `Cargo.toml`:
 
-toml
+```toml
 [dependencies]
-rustao = { git = "https://github.com/kimtony123/rustao" }
+rustao = { path = "../rustao" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1.0"
-Or using cargo add (if published):
+```
 
-bash
-cargo add rustao
-🚀 Quick Start
-rust
-use rustao::{Client, ARSigner};
-use rustao::schema::Tag;
+---
+
+## 🏗️ Modules
+
+### `rustao::crypto`
+Local RSA cryptographic operations (cloned from arweave-rust for security):
+- `Driver::generate_key()` – Generate new RSA-PSS key pair
+- `PrivateKey::sign(data)` – Sign data with RSA-PSS
+- `PrivateKey::verify(data, signature)` – Verify signature
+
+### `rustao::core`
+Core Arweave types:
+- `TransactionData` – Transaction data structure
+
+### `rustao::Client`
+Main client for interacting with AO:
+- `send_message()` – Send messages to processes
+- `spawn_process()` – Spawn new processes
+- `dry_run()` – Simulate execution
+- `get_compute_json()` – Query process state
+
+### `rustao::ARSigner`
+Wallet signing:
+- `ARSigner::from_file(path)` – Load from JWK file
+- `sign(data)` – Sign data
+- `address()` – Get wallet address
+
+---
+
+## 🚀 Quick Start
+
+```rust
+use rustao::{Client, ARSigner, Tag};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load your Arweave wallet (JWK file)
     let signer = ARSigner::from_file("wallet.json")?;
 
-    // Create a client (uses default gateways)
-    let client = Client::new().with_signer(signer);
+    // Create a client
+    let client = Client::new(signer);
 
     // The process you want to interact with
     let process_id = "6wqH8ue2-bnJG7j--FV0KGYzSs53ObFDofDITb7qtxI";
@@ -55,156 +83,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         process_id,
         b"{\"action\": \"hello\"}",
         vec![Tag::new("Action", "Message")],
-        None, // no encryption options
+        None,
+        None,
     ).await?;
     println!("Message sent: {}", msg_id);
 
-    // Wait for the result (max 30 seconds, poll every 2 seconds)
-    let result = client.wait_for_result(&msg_id, process_id, 30, 2).await?;
-    println!("Result: {}", String::from_utf8_lossy(&result.output));
-
-    // Query a compute endpoint
-    let counter = client.get_compute_string(process_id, "counter").await?;
-    println!("Counter: {}", counter);
-
     Ok(())
 }
-# 🧠 Core Concepts
-## 🔑 Signer
-The ARSigner implements the Signer trait, which provides the cryptographic operations required by the client.
+```
 
-Create from JWK file: ARSigner::from_file("wallet.json")?
+---
 
-Create from private key hex: ARSigner::from_private_key_hex(hex)?
+## 🧪 Testing
 
-Sign: async fn sign(&self, data: &[u8]) -> Result<Vec<u8>>
+Run all tests:
+```bash
+cargo test
+```
 
-Public key: fn public_key(&self) -> Vec<u8> (uncompressed)
+Run live network tests:
+```bash
+cargo test test_send_message -- --ignored
+```
 
-Address: fn address(&self) -> String
+---
 
-## 🧩 Client
-The Client is the main entry point. It holds the signer and the URLs for the MU (message uploader), CU (compute unit), SU (scheduler), and compute gateway. You can customise these using builder methods:
+## 📱 Example Dapp
 
-rust
-let client = Client::new()
-    .with_signer(signer)
-    .with_mu("https://custom-mu.example.com")
-    .with_cu("https://custom-cu.example.com")
-    .with_su("https://custom-su.example.com")
-    .with_compute_gateway("https://custom-gateway.example.com");
+See `/home/tony/rustao-example` for a complete Dapp that fetches dApps from AoStore:
 
-## 📨 Messages
-Send a message to a process using send_message. Tags are key‑value pairs that provide metadata. The method returns the data item ID (the ID you use to retrieve the result).
+```bash
+cd rustao-example
+cargo run
+```
 
-rust
-let tags = vec![
-    Tag::new("Action", "Transfer"),
-    Tag::new("Recipient", "some-address"),
-];
-let msg_id = client.send_message(process_id, b"1000", tags, None).await?;
-🌱 Spawn a Process
-To create a new process from a module transaction ID:
+Then visit `http://localhost:8080`
 
-rust
-let process_id = client.spawn_process(
-    "module-tx-id",
-    b"{\"initial\": \"state\"}",
-    vec![Tag::new("App-Name", "MyApp")],
-).await?;
-##  🧪 Dry Run
-Simulate a message without committing it – useful for checking balances or evaluating expressions:
+---
 
-rust
-let result = client.dry_run(
-    process_id,
-    b"{\"action\": \"Balance\"}",
-    vec![Tag::new("Action", "Balance")],
-    None,
-).await?;
-println!("Output: {}", String::from_utf8_lossy(&result.output));
+## 🧑‍💻 Contributing
 
+Contributions are welcome! Please open an issue or pull request.
 
-## 📊 Compute Queries
-AO processes expose state via HTTP compute endpoints. Three helpers are provided:
+---
 
-get_compute(process_id, path) → Vec<u8>
+## License
 
-get_compute_string(process_id, path) → String
+MIT License. See the LICENSE file for details.
 
-get_compute_json(process_id, path) → serde_json::Value
+---
 
-rust
-let raw = client.get_compute(process_id, "counter").await?;
-let str = client.get_compute_string(process_id, "status").await?;
-let json = client.get_compute_json(process_id, "state").await?;
+## 🙏 Acknowledgements
 
-
-## 🔐 Encryption
-The SDK supports hybrid encryption (RSA‑OAEP + AES‑GCM) for message payloads. To send an encrypted message, provide a recipient's RSA public key via SendMessageOptions:
-
-rust
-use rustao::encrypt::{SendMessageOptions, EncryptWithRSA};
-
-let pub_key = ...; // RSA public key of the recipient process
-let opts = SendMessageOptions::new().encrypt_with_rsa(pub_key);
-
-let msg_id = client.send_message(process_id, b"secret data", tags, Some(opts)).await?;
-The client automatically encrypts the data, attaches the required tags (Encrypted-Key, Nonce), and sends the encrypted payload. On the receiving side, you can decrypt the response using the DecryptResponse helper.
-
-# 🧪 Full Example
-Here’s a complete example that interacts with a live process, adds a product, and fetches all apps:
-
-rust
-use rustao::{Client, ARSigner};
-use rustao::schema::Tag;
-use serde_json::json;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let signer = ARSigner::from_file("wallet.json")?;
-    let client = Client::new().with_signer(signer);
-
-    let process_id = "6wqH8ue2-bnJG7j--FV0KGYzSs53ObFDofDITb7qtxI";
-
-    // 1. Add a product
-    let product = json!({
-        "product_type": "Website DApp",
-        "category": "Infrastructure",
-        "name": "Aostore",
-        "description": "Aostore serves as the Playstore...",
-        "website_url": "https://aostore-orpin.vercel.app/",
-        "logo_url": "https://pbs.twimg.com/profile_images/...",
-        "blockchain": "Arweave",
-        "referral_fee": 0.02
-    }).to_string();
-
-    let tags = vec![Tag::new("Action", "AddProduct")];
-    let msg_id = client.send_message(process_id, product.as_bytes(), tags, None).await?;
-    let result = client.wait_for_result(&msg_id, process_id, 30, 2).await?;
-    println!("AddProduct result: {}", String::from_utf8_lossy(&result.output));
-
-    // 2. Fetch all apps
-    let tags = vec![Tag::new("Action", "FetchAllApps")];
-    let msg_id = client.send_message(process_id, &[], tags, None).await?;
-    let result = client.wait_for_result(&msg_id, process_id, 30, 2).await?;
-    let apps: serde_json::Value = serde_json::from_slice(&result.output)?;
-    println!("Total apps: {}", apps.as_array().unwrap().len());
-
-    Ok(())
-}
-
-# 🧑‍💻 Contributing
-Contributions are welcome! Please open an issue or pull request. Make sure to:
-
-Run cargo fmt to format code.
-
-Run cargo test to ensure tests pass.
-
-Add tests for new functionality.
-
-# License
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-# 🙏 Acknowledgements
-Built on top of arweave-rs for Arweave wallet operations.
+- Built on top of [arweave-rust](https://github.com/kimtony123/arweave-rust) for cryptographic operations
+- Inspired by [goao](https://github.com/ar-aostore/goao)
