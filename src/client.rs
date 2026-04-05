@@ -22,14 +22,30 @@ pub struct Client {
     http_client: HttpClient,
 }
 
+impl Clone for Client {
+    fn clone(&self) -> Self {
+        Self {
+            signer: self.signer.clone(),
+            mu: self.mu.clone(),
+            cu: self.cu.clone(),
+            compute_gateway: self.compute_gateway.clone(),
+            http_client: self.http_client.clone(),
+        }
+    }
+}
+
 impl Client {
     pub fn new(signer: ARSigner) -> Self {
+        let http_client = HttpClient::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("Failed to build HTTP client");
         Self {
             signer,
             mu: DEFAULT_MU.to_string(),
             cu: DEFAULT_CU.to_string(),
             compute_gateway: DEFAULT_COMPUTE.to_string(),
-            http_client: HttpClient::new(),
+            http_client,
         }
     }
 

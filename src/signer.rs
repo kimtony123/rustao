@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use num_bigint_dig::BigUint;
-use rsa::{RsaPrivateKey};  // Removed RsaPublicKey (unused)
 use rsa::traits::PublicKeyParts;
+use rsa::RsaPrivateKey; // Removed RsaPublicKey (unused)
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -11,6 +11,16 @@ pub struct ARSigner {
     private_key: RsaPrivateKey,
     public_key: Vec<u8>,
     address: String,
+}
+
+impl Clone for ARSigner {
+    fn clone(&self) -> Self {
+        Self {
+            private_key: self.private_key.clone(),
+            public_key: self.public_key.clone(),
+            address: self.address.clone(),
+        }
+    }
 }
 
 impl ARSigner {
@@ -50,7 +60,7 @@ impl ARSigner {
     }
 
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>> {
-        use rsa::pkcs1v15::{SigningKey, Signature};
+        use rsa::pkcs1v15::{Signature, SigningKey};
         use rsa::signature::{RandomizedSigner, SignatureEncoding};
 
         let mut rng = rand::thread_rng();
@@ -69,7 +79,8 @@ impl ARSigner {
 }
 
 fn decode_jwk_field(v: &Value, field: &str) -> Result<Vec<u8>> {
-    let s = v[field].as_str()
+    let s = v[field]
+        .as_str()
         .ok_or_else(|| Error::InvalidWallet(format!("missing {}", field)))?;
     crate::utils::base64url_decode(s).map_err(|e| Error::InvalidWallet(e.to_string()))
 }
