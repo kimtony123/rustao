@@ -1,12 +1,13 @@
 [package]
 name = "rustao"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Antony Kim <kimtony123@gmail.com>"]
 description = "Rust SDK for the AO protocol on Arweave"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/yourusername/rustao"
+repository = "https://github.com/kimtony123/rustao"
+homepage = "https://github.com/kimtony123/rustao"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
